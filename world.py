@@ -40,8 +40,6 @@ class World:
                     self.grid[i][j].run(self)
         self.havka.day += 1
         self.day += 1
-        if self.day >= 200:
-            self.cut_grid()
         self.phero.clear_phero()
 
     def __str__(self):

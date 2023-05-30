@@ -144,7 +144,7 @@ class Tip4yk:
                         if not isinstance(grid[self.cords[0]+i][self.cords[1]+j], Tip4yk)\
                             and world.phero.grid[self.cords[0]+i][self.cords[1]+j][color] > best_move[1]:
                             best_move = [(self.cords[0]+i, self.cords[1]+j), world.phero.grid[self.cords[0]+i][self.cords[1]+j][color]]
-
+        
         return best_move[0]
 
     def unfero_move(self, world):
