@@ -75,5 +75,5 @@ def main(size):
         visualize(world,world.havka, CELL_SIZE, GAP_SIZE, WINDOW_SIZE, window, button_rect)
         world.run_day()
     pygame.quit()
-
-main(100)
+if __name__ == '__main__':
+    main(100)
