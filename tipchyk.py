@@ -1,14 +1,15 @@
-import numpy as np
 import random
-import pygame
-
-
+import math
+from havka import Havka
+from itertools import product
 
 class States:
     hungry = 'hungry'
     horny = 'horny'
     exploring = 'exploring'
     rage = 'rage'
+    dead = 'dead'
+
 
 class Races:
     BLACK = (0, 0, 0)
@@ -17,110 +18,338 @@ class Races:
     ORANGE = (255, 165, 0)
     GREEN = (0, 255, 0)
 
-class World:
-    def __init__(self, size, people) -> None:
-        self.food_count = 0
-        self.grid = [[0 for _ in range(size)] for _ in range(size)]
-        self.size = size
-        for i, race in enumerate(people):
-            for person in race:
-                print(person.cords)
-                self.grid[person.cords[1]][person.cords[0]] = person
-        self.generate_havka()
-    def generate_havka(self):
-        for i in range(self.size):
-            for j in range(self.size):
-                if self.grid[i][j] == 0 and random.random()>0.95 and self.food_count < self.size*(self.size/4):
-                    self.grid[i][j] = Havka()
-                    self.food_count += 1
-    def run_day(self):
-        
-    def __str__(self):
-        return str('\n'.join(str(line) for line in self.grid))
-    
 
-class Havka():
-    def __init__(self) -> None:
-        self.recharge = 40
+def get_color(rgb):
+    if rgb == Races.BLACK:
+        return 'black'
+    if rgb == Races.WHITE:
+        return 'white'
+    if rgb == Races.ORANGE:
+        return 'orange'
+    if rgb == Races.YELLOW:
+        return 'yellow'
+
 
 class Tip4yk:
     def __init__(self, genom, race, cords, start_energy, start_state = States.hungry) -> None:
+        # health, libido, strength, stamina
         self.genom = genom
         self.race = race
         self.cords = cords
         self.state = start_state
-        self.energy = start_energy
-    def decide_state(self):
-        if self.state == States.hungry:
-            pass
-    def decide_action(self):
-        pass
-    def run(self, nearby):
-        pass
+        self.energy = self.genom[3] *10/3
 
-def main(size):
-    WINDOW_SIZE = (700, 700)
-    CELL_SIZE = 40
-    GAP_SIZE = 10
-    pygame.init()
-    window = pygame.display.set_mode(WINDOW_SIZE)
-    pygame.display.set_caption("Cell Life Simulator")   
-    world = World(size, [[Tip4yk([], Races.BLACK,(0+i, 0+i),100) for i in range(4)],
-                        [Tip4yk([], Races.WHITE,(size - 1 - i, size - 1 - i),100) for i in range(4)],
-                              [Tip4yk([], Races.YELLOW,(size - 1 - i, 0 + i),100) for i in range(4)],
-                                  [Tip4yk([], Races.ORANGE,(0 + i, size - 1 - i),100) for i in range(4)]])
-    running = True
-    while running:
-        # Check for events
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
+    def find_nearby_food(self, world):
+        grid = world.havka.grid
+        ans = []
+        for r in range(1,4):
+            for i in range(-r,r+1):
+                for j in range(-r,r+1):
+                    if i == 0 and j == 0:
+                        continue
+                    try:
+                        if isinstance(grid[self.cords[0]+i][self.cords[1]+j], Havka) \
+                            and self.cords[0]+i>= 0 and self.cords[1]+j>=0:
+                            if grid[self.cords[0]+i][self.cords[1]+j].is_ready(world.havka.day):
+                                ans.append((self.cords[0]+i, self.cords[1]+j))
+                    except IndexError:
+                        continue
+        if not ans:
+            return None
+        return random.choice(ans)
 
-        # Visualize the world
-        visualize(world, CELL_SIZE, GAP_SIZE, WINDOW_SIZE, window)
-    pygame.quit()
+    def find_nearby_enemy(self, grid):
+        ans = []
+        for r in range(1,5):
+            for i in range(-r,r+1):
+                for j in range(-r,r+1):
+                    if i == 0 and j == 0:
+                        continue
+                    try:
+                        if isinstance(grid[self.cords[0]+i][self.cords[1]+j], Tip4yk)\
+                            and self.cords[0]+i>= 0 and self.cords[1]+j>=0:
+                            if grid[self.cords[0]+i][self.cords[1]+j].race != self.race:
+                                ans.append((self.cords[0]+i, self.cords[1]+j))
+                    except IndexError:
+                        continue
+        if not ans:
+            return None
+        closest_enemy = ans[0]
+        for enemy in ans:
+            if math.dist(self.cords, enemy) < math.dist(self.cords, closest_enemy):
+                closest_enemy = enemy
+        return closest_enemy
+
+    def find_nearby_partner(self, grid, partners=False):
+        partners_lst = []
+        for r in range(1,3):
+            for i in range(-r,r+1):
+                for j in range(-r,r+1):
+                    if i == 0 and j == 0:
+                        continue
+                    try:
+                        if isinstance(grid[self.cords[0]+i][self.cords[1]+j], Tip4yk) \
+                            and self.cords[0]+i>= 0 and self.cords[1]+j>=0:
+                            if grid[self.cords[0]+i][self.cords[1]+j].race == self.race:
+                                if partners:
+                                    partners_lst.append((self.cords[0]+i, self.cords[1]+j))
+                                else:
+                                    return self.cords[0]+i, self.cords[1]+j
+                    except IndexError:
+                        continue
+        if partners:
+            return partners_lst
+        return None
+
+    def move(self, world, new_cords):
+
+        if 0<=new_cords[0]<=len(world.grid)  and 0<=new_cords[1] <= len(world.grid):
+            if not isinstance(world.grid[new_cords[0]][new_cords[1]], Tip4yk):
+                if isinstance(world.havka.grid[new_cords[0]][new_cords[1]], Havka):
+                    if self.state == States.hungry:
+                        if world.havka.grid[new_cords[0]][new_cords[1]].is_ready(world.havka.day):
+                            self.energy += world.havka.grid[new_cords[0]][new_cords[1]].recharge
+                            world.havka.grid[new_cords[0]][new_cords[1]].got_eaten(world.havka.day)
+                world.grid[self.cords[0]][self.cords[1]] = 0
+                self.cords[0] = new_cords[0]
+                self.cords[1] = new_cords[1]
+                world.grid[new_cords[0]][new_cords[1]] = self
+                self.energy -= 1
+            if not isinstance(world.grid[self.cords[0]][self.cords[1]], Havka):
+                world.phero.add_phero(self, world)
+        else:
+            self.random_move(world)
 
 
+    def random_move(self, world):
+        grid = world.grid
+        for _ in range(1000):
+            new_y = self.cords[0] + random.randint(0, 2) - 1 
+            new_x = self.cords[1] + random.randint(0, 2) - 1
+            if 0<= new_y<=len(grid) - 1 and 0<= new_x<=len(grid) - 1:
+                if (new_y,new_x) != self.cords and not isinstance(grid[new_y][new_x], Tip4yk):
+                    self.move(world,(new_y, new_x))
+                    break
+
+    def fero_move(self, world):
+        grid = world.grid
+        best_move = [(), 0]
+        color = get_color(self.race)
+        for r in range(1, 5):
+            for i in range(-r,r+1):
+                for j in range(-r,r+1):
+                    if i == 0 and j == 0:
+                        continue
+                    if 0 <= self.cords[0]+i < len(grid) and 0 <= self.cords[1]+j < len(grid):
+                        if not isinstance(grid[self.cords[0]+i][self.cords[1]+j], Tip4yk)\
+                            and world.phero.grid[self.cords[0]+i][self.cords[1]+j][color] > best_move[1]:
+                            best_move = [(self.cords[0]+i, self.cords[1]+j), world.phero.grid[self.cords[0]+i][self.cords[1]+j][color]]
+
+        return best_move[0]
+
+    def unfero_move(self, world):
+        grid = world.grid
+        best_move = [(), 10000000]
+        color = get_color(self.race)
+        moves = {}
+        for r in range(1, 5):
+            for i in range(-r,r+1):
+                for j in range(-r,r+1):
+                    if i == 0 and j == 0:
+                        continue
+                    if 0 <= self.cords[0]+i < len(grid) and 0 <= self.cords[1]+j < len(grid):
+                        if not isinstance(grid[self.cords[0]+i][self.cords[1]+j], Tip4yk):
+                            if world.phero.grid[self.cords[0]+i][self.cords[1]+j][color] not in moves.keys():
+                                moves[world.phero.grid[self.cords[0]+i][self.cords[1]+j][color]] = []
+                            moves[world.phero.grid[self.cords[0]+i][self.cords[1]+j][color]].append((self.cords[0]+i, self.cords[1]+j)) 
+ 
+        if moves:
+            return random.choice(moves[min(moves.keys())])
+        return None
+
+    def die(self, grid):
+        grid[self.cords[0]][self.cords[1]] = 0
+
+    def mutate(self, genom):
+        mutate_gene = random.choice(genom)
+        index_gene = genom.index(mutate_gene)
+        if random.random() < self.genom[0] and genom[index_gene] < 30:
+            genom[index_gene] += 1
+        if random.random() < 0.15 and genom[index_gene] > 0:
+            genom[index_gene] -= 1
+        return genom
+
+    def short_distance(self, grid, goal_cords):
+        possible_x = []
+        possible_y = []
+        moves = []
+        for i in range(-1, 2):
+            possible_y.append(self.cords[0]+i)
+        for j in range(-1, 2):
+            possible_x.append(self.cords[1]+j)
+
+        for p in product(possible_y, possible_x):
+            moves.append(p)
+
+        possible_moves = []
+        for move in moves:
+            if 0 <= move[0] < len(grid) and 0 <= move[1] < len(grid):
+                possible_moves.append(move)
+        best_move = possible_moves[0]
+        for move in possible_moves:
+            if math.dist(move, goal_cords) < math.dist(best_move, goal_cords):
+                best_move = move
+        return best_move
+
+    def sex(self, world):
+        ans = []
+        grid = world.grid
+        for r in range(1,3):
+            for i in range(-r,r+1):
+                for j in range(-r,r+1):
+                    if i == 0 and j == 0:
+                        continue
+                    try:
+                        if isinstance(grid[self.cords[0]+i][self.cords[1]+j], Tip4yk)\
+                            and self.cords[0]+i>= 0 and self.cords[1]+j>=0:
+                            if grid[self.cords[0]+i][self.cords[1]+j].race == self.race:
+                                ans.append(grid[self.cords[0]+i][self.cords[1]+j])
+                    except IndexError:
+                        continue
+
+        # zrobyty vybir partnera po fitnesu
+        if ans:
+            # partner = random.choice(ans)
+            partner = sorted(ans, key=lambda x: x.genom[0], reverse=True)[0]
+            kid_genome = []
+            for i, x in enumerate(self.genom):
+                kid_genome.append(int((x + partner.genom[i])//2))
+            kid_genome = self.mutate(kid_genome)
+            kid_cords = list(self.short_distance(grid, partner.cords))
+            new_tip = Tip4yk(kid_genome, self.race, kid_cords, 45)
+            world.add_tip(new_tip)
+
+    def fight(self, world, enemy_cords):
+
+        grid = world.grid
+        # if self.race == Races.WHITE and grid[enemy_cords[0]][enemy_cords[1]].race == Races.BLACK:
+        #     return enemy_cords
+        sum_gene = self.genom[2] + grid[enemy_cords[0]][enemy_cords[1]].genom[2]
+        if random.random() > self.genom[2]/sum_gene:
+            return enemy_cords
+        return self.cords
 
 
+    def decide_state(self, world):
+        nearby_enemy = self.find_nearby_enemy(world.grid)
+        nearby_partners = self.find_nearby_partner(world.grid, partners=True)
 
-def visualize(world, CELL_SIZE, GAP_SIZE, WINDOW_SIZE, window):
-    # Calculate the grid dimensions based on the world size
-    grid_width = world.size * (CELL_SIZE + GAP_SIZE) + GAP_SIZE
-    grid_height = world.size * (CELL_SIZE + GAP_SIZE) + GAP_SIZE
+        # if random.random() > 0.3 and not nearby_enemy and self.energy > 30:
+        #     self.state = States.exploring
+        if self.energy < 0:
+            self.state = States.dead
+            return
+        elif self.state == States.hungry:
 
-    # Create a surface for the grid
-    grid_surface = pygame.Surface((grid_width, grid_height))
-
-    # Clear the grid surface
-    grid_surface.fill(Races.BLACK)
-
-    # Draw the cells on the grid surface
-    for i in range(world.size):
-        for j in range(world.size):
-            cell = world.grid[i][j]
-
-            # Define the color based on the cell's race
-            color = None
-            if isinstance(cell, Havka):
-                color = Races.GREEN
-            elif cell == 0:
-                color = (100,100,100)
+            if nearby_enemy and self.energy > 50:
+                self.state = States.rage
+            elif self.energy > 180:
+                if nearby_enemy:
+                    self.state = States.rage
+                elif not nearby_enemy and nearby_partners and self.energy > 230:
+                    self.state = States.horny
+                else:
+                    self.state = States.exploring
             else:
-                color = cell.race
+                self.state == States.hungry
+        elif self.state == States.exploring:
 
-            # Calculate the cell position on the grid surface
-            cell_x = j * (CELL_SIZE + GAP_SIZE) + GAP_SIZE
-            cell_y = i * (CELL_SIZE + GAP_SIZE) + GAP_SIZE
+            if nearby_enemy and self.energy > 40:
+                self.state = States.rage
+            elif self.energy <= 80:
+                self.state = States.hungry
+            elif not nearby_enemy and nearby_partners and self.energy > 85:
+                self.state = States.horny
+            else:
+                self.state = States.exploring
+        elif self.state == States.rage:
+            
+            if nearby_enemy and self.energy > 40:
+                self.state = States.rage
+            elif self.energy <= 80:
+                self.state = States.hungry
 
-            # Draw the cell rectangle on the grid surface
-            pygame.draw.rect(grid_surface, color, (cell_x, cell_y, CELL_SIZE, CELL_SIZE))
+            else:
+                self.state = States.exploring
+        elif self.state == States.horny:
+            if nearby_enemy and self.energy > 40:
+                self.state = States.rage
+            elif self.energy <= 80:
+                self.state = States.hungry
+            else:
+                self.state = States.exploring
 
-    # Scale the grid surface to fit the window
-    scaled_surface = pygame.transform.scale(grid_surface, WINDOW_SIZE)
+    def decide_action(self, world):
+        if self.state == States.dead:
+            self.die(world.grid)
+        if self.state == States.hungry:
 
-    # Update the window
-    window.blit(scaled_surface, (0, 0))
-    pygame.display.flip()
+            nearby = self.find_nearby_food(world)
+            if nearby:
+                diffy = nearby[0] - self.cords[0]
+                diffx = nearby[1] - self.cords[1]
+                if diffx < -1:
+                    diffx = -1
+                if diffx > 1:
+                    diffx = 1
+                if diffy < -1:
+                    diffy = -1
+                if diffy > 1:
+                    diffy = 1
+                self.move(world,(self.cords[0] + diffy, self.cords[1] + diffx))
+            else:
+                move = self.fero_move(world)
+                if move:
+                    if int(math.dist(move, self.cords)) == 1:
+                        self.move(world, move)
+                    else:
+                        move = self.short_distance(world.grid, move)
+                        self.move(world, move)
+                else:
+                    self.random_move(world)
+                # self.random_move(world)
+        if self.state == States.rage:
+            grid = world.grid
+            nearby_enemy = self.find_nearby_enemy(grid)
+            if nearby_enemy:
+                if int(math.dist(nearby_enemy, self.cords)) <= 1:
+                    loser = self.fight(world, nearby_enemy)
+                    if loser:
+                        grid[loser[0]][loser[1]].state = States.dead
+                        grid[loser[0]][loser[1]] = 0
+                else:
+                    move = self.short_distance(grid, nearby_enemy)
+                    self.move(world, move)
+            else:
+                self.random_move(world)
+        if self.state == States.exploring:
+            move = self.unfero_move(world)
+            if move:
+                if int(math.dist(move, self.cords)) <= 1:
+                    self.move(world, move)
+                else:
+                    move = self.short_distance(world.grid, move)
+                    self.move(world, move)
+            else:
+                self.random_move(world)
+        if self.state == States.horny:
+            if random.random() < self.genom[1]/30-0.1:
+                self.sex(world)
+                self.random_move(world)
+            else:
+                self.random_move(world)
 
-main(50)
+
+    def run(self, world):
+        self.decide_action(world)
+        self.decide_state(world)

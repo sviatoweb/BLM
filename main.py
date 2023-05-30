@@ -1,92 +1,68 @@
-from random import choices, random, randrange
-from typing import Callable, List, Tuple
-from organism import Organism
+
+import numpy as np
+import pygame
+import time
+import random
+from havka import Havka, Cluster, Havka_world 
+from tipchyk import States, Races, Tip4yk
+from fero import Fero_world
+from world import World
 
 
-Genome = List[int]
-Population = List[Genome]
-FitnessFunc = Callable[[Genome], int]
-PopulateFunc = Callable[[int, int], Population]
-SelectionFunc = Callable[[FitnessFunc, Population], Tuple[Genome, Genome]]
-CrossoverFunc = Callable[[Genome, Genome], Genome]
-MutationFunc = Callable[[Genome, int, float], Genome]
 
+def visualize(world,havka_world, CELL_SIZE, GAP_SIZE, WINDOW_SIZE, window):
+    grid_width = world.size * (CELL_SIZE + GAP_SIZE) + GAP_SIZE
+    grid_height = world.size * (CELL_SIZE + GAP_SIZE) + GAP_SIZE
+    grid_surface = pygame.Surface((grid_width, grid_height))
+    grid_surface.fill(Races.BLACK)
+    for i in range(havka_world.size):
+        for j in range(havka_world.size):
+            cell = havka_world.grid[i][j]
+            color = None
+            if isinstance(cell, Havka):
+                if cell.is_ready(havka_world.day):
+                    color = Races.GREEN
+                else:
+                    color = (100,100,100)
+            else:
+                color = (100,100,100)
+            cell_x = j * (CELL_SIZE + GAP_SIZE) + GAP_SIZE
+            cell_y = i * (CELL_SIZE + GAP_SIZE) + GAP_SIZE
+            pygame.draw.rect(grid_surface, color, (cell_x, cell_y, CELL_SIZE, CELL_SIZE))
+    for i in range(world.size):
+        for j in range(world.size):
+            cell = world.grid[i][j]
+            color = None
+            if isinstance(cell, Tip4yk):
+                color = cell.race
+            else:
+                continue
+            cell_x = j * (CELL_SIZE + GAP_SIZE) + GAP_SIZE
+            cell_y = i * (CELL_SIZE + GAP_SIZE) + GAP_SIZE
+            pygame.draw.rect(grid_surface, color, (cell_x, cell_y, CELL_SIZE, CELL_SIZE))
+    scaled_surface = pygame.transform.scale(grid_surface, WINDOW_SIZE)
+    window.blit(scaled_surface, (0, 0))
+    pygame.display.flip()
 
-def generate_population(size: int, genome_length: int) -> Population:
-    return [Organism(genome_length) for _ in range(size)]
+def main(size):
+    WINDOW_SIZE = (700, 700)
+    CELL_SIZE = 40
+    GAP_SIZE = 0
+    pygame.init()
+    window = pygame.display.set_mode(WINDOW_SIZE)
+    pygame.display.set_caption("Cell Life Simulator")   
+    world = World(size, [[Tip4yk([12, 17, 29, 22], Races.BLACK,[0+i, 0+i],100) for i in range(8)],
+                        [Tip4yk([24, 16, 16, 16], Races.WHITE,[size - 1 - i, size - 1 - i],100) for i in range(8)],
+                        [Tip4yk([11, 24, 12, 7], Races.YELLOW,[0 + i,size - 1 - i],100) for i in range(8)],
+                        [Tip4yk([19, 14, 22, 28], Races.ORANGE,[size - 1 - i, 0 + i],100) for i in range(8)]])
 
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+        visualize(world,world.havka, CELL_SIZE, GAP_SIZE, WINDOW_SIZE, window)
+        world.run_day()
+    pygame.quit()
 
-def fitness(organism: Organism):
-    return sum(organism._genome)
-
-
-def selection_pair(fintess_func: FitnessFunc, population: Population):
-    return choices(
-        population=population,
-        weights=[fintess_func(genome) for genome in population],
-        k=2
-    )
-
-
-def single_point_crossover(organism_a: Organism, organism_b: Organism) -> Tuple[Genome, Genome]:
-    length = len(organism_a._genome)
-    new_genome = []
-    org = Organism(5)
-    for i in range(length):
-        new_genome.append(int((organism_a._genome[i]+organism_b._genome[i])/2))
-    org._genome = new_genome
-    return org
-
-
-def mutation(genome: Genome, num: int = 1, probability: float = 0.5) -> Genome:
-    for _ in range(num):
-        index = randrange(len(genome._genome))
-        genome._genome[index] = genome._genome[index] if random() > probability else genome._genome[index]+1
-        if genome._genome[index] > 10:
-            genome._genome[index] = 10
-    return genome
-
-
-def run_evolution(
-        populate_func: PopulateFunc,
-        fitness_func: FitnessFunc,
-        fitness_limit: int,
-        selection_func: SelectionFunc = selection_pair,
-        crossover_func: CrossoverFunc = single_point_crossover,
-        mutation_func: MutationFunc = mutation,
-        generation_limit: int = 400) \
-        -> Tuple[Population, int]:
-    population = populate_func(26, 5)
-    populations = [population]
-    for i in range(generation_limit):
-        print(f'Generation {i}')
-        population = sorted(population, key=lambda genome: fitness_func(genome), reverse=True)
-        print(f'Best genome: {population[0]}')
-
-        if fitness_func(population[0]) >= fitness_limit:
-            break
-
-        next_generation = population[0:2]
-
-        for j in range(int(len(population) / 2) - 1):
-            parents = selection_func(fitness_func, population)
-            new_organism_a = crossover_func(parents[0], parents[1])
-            new_organism_b = crossover_func(parents[0], parents[1])
-
-            new_organism_a = mutation_func(new_organism_a)
-            new_organism_b = mutation_func(new_organism_b)
-            next_generation += [new_organism_a, new_organism_b]
-
-        population = next_generation
-        populations.append(population)
-
-    return populations
-
-populations = run_evolution(
-    populate_func=generate_population,
-    fitness_func=fitness,
-    fitness_limit=44,
-    selection_func=selection_pair,
-    crossover_func=single_point_crossover,
-    mutation_func=mutation
-)
+main(100)
