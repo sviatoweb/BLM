@@ -133,19 +133,22 @@ class Tip4yk:
 
     def fero_move(self, world):
         grid = world.grid
-        best_move = [(), 0]
         color = get_color(self.race)
+        moves = {}
         for r in range(1, 5):
             for i in range(-r,r+1):
                 for j in range(-r,r+1):
                     if i == 0 and j == 0:
                         continue
                     if 0 <= self.cords[0]+i < len(grid) and 0 <= self.cords[1]+j < len(grid):
-                        if not isinstance(grid[self.cords[0]+i][self.cords[1]+j], Tip4yk)\
-                            and world.phero.grid[self.cords[0]+i][self.cords[1]+j][color] > best_move[1]:
-                            best_move = [(self.cords[0]+i, self.cords[1]+j), world.phero.grid[self.cords[0]+i][self.cords[1]+j][color]]
-        
-        return best_move[0]
+                        if not isinstance(grid[self.cords[0]+i][self.cords[1]+j], Tip4yk):
+                            if world.phero.grid[self.cords[0]+i][self.cords[1]+j][color] not in moves.keys():
+                                moves[world.phero.grid[self.cords[0]+i][self.cords[1]+j][color]] = []
+                            moves[world.phero.grid[self.cords[0]+i][self.cords[1]+j][color]].append((self.cords[0]+i, self.cords[1]+j)) 
+ 
+        if moves:
+            return random.choice(moves[max(moves.keys())])
+        return None
 
     def unfero_move(self, world):
         grid = world.grid
