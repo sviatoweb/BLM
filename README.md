@@ -26,6 +26,11 @@ This Python project combines the concepts of Conway's Game of Life, Genetic Algo
 
 Each race is modeled using a finite state machine with different states representing various aspects of their life cycle, such as reproduction, movement, and combat.
 
+## Example
+![animation1](https://github.com/sviatoweb/discrete_project/assets/81622077/7c959dac-b8a4-469a-95a9-9bb0384fb543)
+
+
+
 ## Usage
 
 1. **Installation:**
